@@ -1,0 +1,6 @@
+# Fichier d'environnement
+.env
+
+# Fichiers cache Python
+__pycache__/
+*.py[cod]
