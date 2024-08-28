@@ -39,12 +39,7 @@
 
 9. Base de données
    - Modèles de données
-   - Migrations
-
-10. Tests
-
-11. FAQ
-
+   
 
 # 1. Introduction
 
@@ -220,41 +215,47 @@ L'étape 5 est importante car des tests spécifiques sont créés pour chaque fo
 .
 ├── Dockerfile
 ├── .env
+├── .gitignore
 ├── README.md
+├── main.py
 ├── config.py
 ├── database.py
-├── main.py
-├── models
+├── requirements.txt
+├── models/
+│   ├── customer.py
 │   ├── subscription.py
 │   └── transaction.py
-├── providers
+├── providers/
 │   ├── base.py
 │   ├── paypal.py
 │   └── stripe.py
-├── requirements.txt
-├── routes
+├── routes/
+│   ├── customers.py
+│   ├── products.py
 │   ├── subscriptions.py
 │   └── transactions.py
-├── schemas
+├── schemas/
+│   ├── customer.py
 │   ├── subscription.py
 │   └── transaction.py
-├── test_paypal.py
-├── test_stripe.py
-└── utils
-    └── provider_loader.py
+├── utils/
+│   └── provider_loader.py
+└── test_paypal.py
+└── test_stripe.py
 ```
 
 ## Description des principaux modules
 
-1. **main.py** : Point d'entrée de l'application FastAPI. Il initialise l'application, charge les fournisseurs de paiement et inclut les routes.
+1. **main.py** : Point d'entrée de l'application FastAPI. Il initialise l'application, configure les routes pour les transactions, abonnements, clients et produits, et charge les fournisseurs de paiement.
 
-2. **config.py** : Gère la configuration de l'application, y compris le chargement des variables d'environnement.
+2. **config.py** : Gère la configuration de l'application, y compris le chargement des variables d'environnement et la configuration des fournisseurs de paiement.
 
 3. **database.py** : Configure la connexion à la base de données et fournit une session de base de données.
 
-4. **models/** : Contient les modèles de données SQLAlchemy pour les transactions et les abonnements.
-   - **transaction.py** : Définit le modèle de données pour les transactions.
+4. **models/** : Contient les modèles de données SQLAlchemy pour les transactions, abonnements et clients.
+   - **customer.py** : Définit le modèle de données pour les clients.
    - **subscription.py** : Définit le modèle de données pour les abonnements.
+   - **transaction.py** : Définit le modèle de données pour les transactions.
 
 5. **providers/** : Contient les classes pour chaque fournisseur de paiement.
    - **base.py** : Définit la classe de base `PaymentProvider` avec les méthodes abstraites.
@@ -262,122 +263,49 @@ L'étape 5 est importante car des tests spécifiques sont créés pour chaque fo
    - **paypal.py** : Implémente le fournisseur de paiement PayPal.
 
 6. **routes/** : Contient les définitions des routes de l'API.
-   - **transactions.py** : Gère les routes liées aux transactions.
+   - **customers.py** : Gère les routes liées aux clients.
+   - **products.py** : Gère les routes liées aux produits.
    - **subscriptions.py** : Gère les routes liées aux abonnements.
+   - **transactions.py** : Gère les routes liées aux transactions.
 
 7. **schemas/** : Contient les schémas Pydantic pour la validation des données d'entrée et de sortie.
-   - **transaction.py** : Définit les schémas pour les transactions.
+   - **customer.py** : Définit les schémas pour les clients.
    - **subscription.py** : Définit les schémas pour les abonnements.
+   - **transaction.py** : Définit les schémas pour les transactions.
 
 8. **utils/** :
    - **provider_loader.py** : Contient la logique pour charger dynamiquement les fournisseurs de paiement.
 
-9. **test_stripe.py** et **test_paypal.py** : Fichiers de test pour les fournisseurs Stripe et PayPal respectivement.
+9. **test_paypal.py** et **test_stripe.py** : Fichiers de test pour les fournisseurs PayPal et Stripe respectivement.
 
 10. **Dockerfile** : Définit la configuration pour créer une image Docker de l'application.
 
 11. **requirements.txt** : Liste toutes les dépendances Python nécessaires pour l'application.
 
-Les fournisseurs de paiement sont isolés dans leurs propres modules, permettant d'ajouter facilement de nouveaux fournisseurs sans affecter le reste du code.
+12. **.gitignore** : Spécifie les fichiers et dossiers intentionnellement non suivis à ignorer par Git.
+
+Cette structure suit une architecture modulaire, séparant clairement les différentes préoccupations de l'application. Les fournisseurs de paiement sont isolés dans leurs propres modules, permettant d'ajouter facilement de nouveaux fournisseurs sans affecter le reste du code. Les routes sont organisées par domaine (transactions, abonnements, clients, produits), facilitant la maintenance et l'extension de l'API.
+
+L'application utilise FastAPI comme framework web, SQLAlchemy pour l'ORM, et Pydantic pour la validation des données. Les tests sont organisés par fournisseur de paiement, permettant de vérifier spécifiquement les fonctionnalités de chaque intégration.
 
 # 5. Utilisation de l'API
 
 ## Endpoints disponibles
 
-L'API de Paiement Flexible offre les endpoints suivants :
+L'API de Paiement offre les endpoints suivants :
 
 1. **POST /transactions/** : Créer une nouvelle transaction
 2. **GET /transactions/{transaction_id}** : Récupérer les détails d'une transaction
-3. **POST /subscriptions/** : Créer un nouvel abonnement
-4. **GET /subscriptions/{subscription_id}** : Récupérer les détails d'un abonnement
-5. **PUT /subscriptions/{subscription_id}** : Mettre à jour un abonnement
-6. **DELETE /subscriptions/{subscription_id}** : Annuler un abonnement
-7. **POST /webhook/{provider}** : Endpoint pour les webhooks des fournisseurs de paiement
-
-## Exemples de requêtes et réponses
-
-### Créer une nouvelle transaction
-
-**Requête :**
-
-```
-POST /transactions/?provider=stripe
-Content-Type: application/json
-
-{
-  "amount": 100.0,
-  "currency": "EUR",
-  "payment_details": {"customer_email": "client@example.com"},
-  "success_url": "https://example.com/success",
-  "cancel_url": "https://example.com/cancel",
-  "description": "Achat de produit XYZ",
-  "custom_metadata": {"order_id": "ORD-12345"}
-}
-```
-
-**Réponse :**
-
-```
-HTTP/1.1 201 Created
-Content-Type: application/json
-
-{
-  "id": 1,
-  "amount": 100.0,
-  "currency": "EUR",
-  "status": "pending",
-  "provider": "StripeProvider",
-  "provider_transaction_id": "pi_3NqKjHXXXXXXXXXX1234567890",
-  "client_secret": "pi_3NqKjHXXXXXXXXXX1234567890_secret_XXXXXXXXXXXXXXXXXXXXXXXX",
-  "checkout_url": "https://checkout.stripe.com/c/pay/cs_test_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-  "created_at": "2023-07-25T14:30:00Z",
-  "metadata": {"order_id": "ORD-12345"},
-  "description": "Achat de produit XYZ"
-}
-```
-
-### Créer un nouvel abonnement
-
-**Requête :**
-
-```
-POST /subscriptions/?provider=paypal
-Content-Type: application/json
-
-{
-  "user_id": 1,
-  "plan_id": "monthly_plan",
-  "amount": 19.99,
-  "currency": "EUR",
-  "interval": "month",
-  "interval_count": 1,
-  "payment_details": {
-    "success_url": "http://example.com/success",
-    "cancel_url": "http://example.com/cancel"
-  }
-}
-```
-
-**Réponse :**
-
-```
-HTTP/1.1 201 Created
-Content-Type: application/json
-
-{
-  "id": 1,
-  "user_id": 1,
-  "plan_id": "monthly_plan",
-  "amount": 19.99,
-  "currency": "EUR",
-  "status": "active",
-  "provider": "PayPalProvider",
-  "provider_subscription_id": "I-BWXXXXXXXX",
-  "created_at": "2023-07-25T15:00:00Z",
-  "next_billing_date": "2023-08-25T15:00:00Z",
-  "cancel_at_period_end": false
-}
-```
+3. **GET /transactions/{transaction_id}/pay** : Obtenir l'URL de paiement pour une transaction
+4. **GET /transactions/{transaction_id}/status** : Obtenir le statut d'une transaction
+5. **POST /subscriptions/** : Créer un nouvel abonnement
+6. **GET /subscriptions/{subscription_id}** : Récupérer les détails d'un abonnement
+7. **PUT /subscriptions/{subscription_id}** : Mettre à jour un abonnement
+8. **DELETE /subscriptions/{subscription_id}** : Annuler un abonnement
+9. **POST /customers/** : Créer un nouveau client
+10. **GET /customers/{customer_id}/payment-method** : Vérifier si un client a une méthode de paiement
+11. **POST /products/** : Créer un nouveau produit et son prix (pour les abonnements)
+12. **POST /webhook/{provider}** : Endpoint pour les webhooks des fournisseurs de paiement
 
 Pour plus de détails sur les paramètres acceptés et les réponses pour chaque endpoint, veuillez consulter la documentation Swagger/OpenAPI disponible à l'adresse `http://localhost:8000/docs` lorsque l'API est en cours d'exécution.
 
@@ -398,7 +326,7 @@ Ces fournisseurs sont implémentés dans les fichiers suivants :
 
 ## Ajout d'un nouveau fournisseur
 
-Pour ajouter un nouveau fournisseur de paiement à l'API, suivez ces étapes rigoureusement :
+Pour ajouter un nouveau fournisseur de paiement à l'API, suivez ces étapes en vous basant sur l'implémentation de Stripe :
 
 1. **Créer une nouvelle classe de fournisseur** :
    - Créez un nouveau fichier dans le dossier `providers/`, par exemple `new_provider.py`.
@@ -412,6 +340,10 @@ Pour ajouter un nouveau fournisseur de paiement à l'API, suivez ces étapes rig
    - `get_payment_status`
    - `get_subscription_status`
    - `handle_webhook`
+   - `create_customer`
+   - `create_product`
+   - `create_price`
+   - `update_subscription`
 
 3. **Ajouter les variables d'environnement** :
    - Ajoutez les variables d'environnement nécessaires pour le nouveau fournisseur dans le fichier `.env`.
@@ -422,11 +354,9 @@ Pour ajouter un nouveau fournisseur de paiement à l'API, suivez ces étapes rig
 
 5. **Créer des tests** :
    - Ajoutez un nouveau fichier de test, par exemple `test_new_provider.py`.
-   - Implémentez des tests pour toutes les fonctionnalités du nouveau fournisseur.
+   - Implémentez des tests pour toutes les fonctionnalités du nouveau fournisseur, en vous basant sur la structure de `test_stripe.py`.
 
-6. **Mettre à jour la documentation** :
-   - Ajoutez des informations sur le nouveau fournisseur dans le README.md.
-   - Mettez à jour la documentation API si nécessaire.
+Pour plus de détails sur l'implémentation, référez-vous au fichier `providers/stripe.py` :
 
 # 7. Gestion des transactions
 
@@ -435,32 +365,47 @@ Pour ajouter un nouveau fournisseur de paiement à l'API, suivez ces étapes rig
 Le processus de création d'une transaction suit les étapes suivantes :
 
 1. L'utilisateur envoie une requête POST à l'endpoint `/transactions/` avec les détails de la transaction.
-2. L'API vérifie et valide les données d'entrée.
-3. Le fournisseur de paiement approprié est sélectionné en fonction du paramètre `provider`.
-4. L'API appelle la méthode `create_payment` du fournisseur sélectionné.
-5. Le fournisseur de paiement traite la demande et renvoie les détails de la transaction.
-6. L'API enregistre la transaction dans la base de données.
-7. Une réponse est renvoyée à l'utilisateur avec les détails de la transaction, y compris l'URL de paiement.
+2. L'API vérifie et valide les données d'entrée à l'aide du schéma Pydantic `TransactionCreate`.
+3. Le fournisseur de paiement est sélectionné en fonction du paramètre `provider` passé dans la requête.
+4. L'API crée d'abord une entrée de transaction dans la base de données avec un statut initial "pending".
+5. L'API appelle ensuite la méthode `create_payment` du fournisseur sélectionné, en passant les détails de la transaction.
+6. Le fournisseur de paiement traite la demande et renvoie les détails de la transaction, y compris l'URL de paiement.
+7. L'API met à jour l'entrée de la transaction dans la base de données avec les informations renvoyées par le fournisseur, notamment l'ID de transaction du fournisseur et l'URL de paiement.
+8. Une réponse est renvoyée à l'utilisateur avec les détails de la transaction, y compris l'ID de la transaction et l'URL de paiement.
+
+Pour plus de détails sur l'implémentation, vous pouvez consulter le code source de routes/transactions.py
 
 ## Vérification du statut
 
 La vérification du statut d'une transaction peut se faire de deux manières :
 
-1. **Vérification active** : L'utilisateur peut envoyer une requête GET à l'endpoint `/transactions/{transaction_id}` pour obtenir le statut actuel de la transaction.
+1. **Vérification active** : L'utilisateur peut envoyer une requête GET à l'endpoint `/transactions/{transaction_id}/status` pour obtenir le statut actuel de la transaction.
 
 2. **Mise à jour passive** : Le statut est automatiquement mis à jour lorsque l'API reçoit un webhook du fournisseur de paiement.
 
+La vérification active permet d'obtenir le statut le plus récent d'une transaction à tout moment. Elle est particulièrement utile pour les interfaces utilisateur qui nécessitent des mises à jour en temps réel ou pour vérifier l'état d'une transaction après que l'utilisateur a été redirigé vers l'URL de paiement.
+
+Lorsqu'une requête de vérification de statut est effectuée, l'API interroge le fournisseur de paiement pour obtenir le statut le plus récent, puis met à jour la base de données locale si nécessaire. Cela garantit que le statut affiché est toujours à jour, même si un webhook n'a pas encore été reçu ou traité.
+
+Il est recommandé d'utiliser une combinaison de vérification active et de mise à jour passive pour assurer une synchronisation optimale entre votre système et le fournisseur de paiement.
+
 ## Webhooks
 
-Les webhooks jouent un rôle crucial dans la mise à jour en temps réel du statut des transactions :
+Les webhooks jouent un rôle crucial dans la mise à jour en temps réel du statut des transactions et des abonnements :
 
 1. Chaque fournisseur de paiement est configuré pour envoyer des webhooks à l'endpoint `/webhook/{provider}`.
-2. Lorsqu'un webhook est reçu, l'API l'authentifie et le valide.
-3. Le webhook est traité par la méthode `webhook` du fournisseur approprié.
-4. En fonction des informations du webhook, l'API met à jour le statut de la transaction dans la base de données.
-5. Si nécessaire, des actions supplémentaires sont déclenchées (par exemple, envoi d'un e-mail de confirmation).
 
-Cette approche permet une gestion en temps réel des transactions, assurant que l'état des paiements dans votre système est toujours à jour.
+2. Lorsqu'un webhook est reçu, l'API le traite via la méthode `process_webhook` du fournisseur approprié.
+
+3. La méthode `process_webhook` analyse le type d'événement et extrait les informations pertinentes :
+   - Pour les transactions, elle renvoie l'ID de la transaction et son statut.
+   - Pour les abonnements, elle renvoie l'ID de l'abonnement et son statut.
+
+4. En fonction des informations du webhook, l'API met à jour le statut de la transaction ou de l'abonnement dans la base de données.
+
+5. Si nécessaire, des actions supplémentaires peuvent être déclenchées en fonction du type d'événement reçu.
+
+Cette approche permet une gestion en temps réel des transactions et des abonnements, assurant que l'état des paiements dans votre système est toujours à jour.
 
 # 8. Gestion des abonnements
 
@@ -469,12 +414,12 @@ Cette approche permet une gestion en temps réel des transactions, assurant que 
 Le processus de création d'un abonnement suit les étapes suivantes :
 
 1. L'utilisateur envoie une requête POST à l'endpoint `/subscriptions/` avec les détails de l'abonnement.
-2. L'API vérifie et valide les données d'entrée.
-3. Le fournisseur de paiement approprié est sélectionné en fonction du paramètre `provider`.
-4. L'API appelle la méthode `create_subscription` du fournisseur sélectionné.
+2. L'API vérifie et valide les données d'entrée à l'aide du schéma Pydantic `SubscriptionCreate`.
+3. Le fournisseur de paiement est sélectionné en fonction du paramètre `provider` passé dans la requête.
+4. L'API appelle la méthode `create_subscription` du fournisseur sélectionné, en passant les détails de l'abonnement.
 5. Le fournisseur de paiement traite la demande et renvoie les détails de l'abonnement.
-6. L'API enregistre l'abonnement dans la base de données.
-7. Une réponse est renvoyée à l'utilisateur avec les détails de l'abonnement, y compris l'ID de l'abonnement chez le fournisseur.
+6. L'API crée une nouvelle entrée d'abonnement dans la base de données avec les informations renvoyées par le fournisseur.
+7. Une réponse est renvoyée à l'utilisateur avec les détails de l'abonnement, y compris l'ID de l'abonnement local et l'ID de l'abonnement chez le fournisseur.
 
 ## Mise à jour et annulation
 
@@ -482,7 +427,7 @@ La mise à jour et l'annulation des abonnements sont gérées de manière simila
 
 1. Mise à jour d'un abonnement :
    - L'utilisateur envoie une requête PUT à l'endpoint `/subscriptions/{subscription_id}` avec les nouvelles informations.
-   - L'API vérifie les modifications et appelle la méthode appropriée du fournisseur de paiement.
+   - L'API vérifie les modifications et appelle la méthode `update_subscription` du fournisseur de paiement.
    - Les changements sont reflétés dans la base de données locale.
 
 2. Annulation d'un abonnement :
@@ -490,11 +435,11 @@ La mise à jour et l'annulation des abonnements sont gérées de manière simila
    - L'API appelle la méthode `cancel_subscription` du fournisseur de paiement.
    - Le statut de l'abonnement est mis à jour dans la base de données locale.
 
-Dans les deux cas, les webhooks jouent un rôle crucial :
+Les webhooks jouent un rôle crucial dans la gestion des abonnements :
 
 - Les fournisseurs de paiement envoient des webhooks pour notifier des changements d'état des abonnements.
-- L'API traite ces webhooks et met à jour la base de données en conséquence.
-- Cela garantit que l'état des abonnements dans votre système reste synchronisé avec celui du fournisseur de paiement.
+- L'API traite ces webhooks via la méthode `process_webhook` du fournisseur de paiement.
+- Les informations extraites du webhook sont utilisées pour mettre à jour la base de données, garantissant ainsi que l'état des abonnements dans votre système reste synchronisé avec celui du fournisseur de paiement.
 
 # 9. Base de données
 
@@ -507,6 +452,7 @@ L'API de Paiement Flexible utilise SQLAlchemy comme ORM (Object-Relational Mappi
 Le modèle `Transaction` représente une transaction de paiement unique. Il est défini dans `models/transaction.py` et comprend les champs suivants :
 
 - `id` : Identifiant unique de la transaction
+- `user_id` : Identifiant de l'utilisateur associé à la transaction
 - `amount` : Montant de la transaction
 - `currency` : Devise de la transaction
 - `status` : Statut actuel de la transaction (ex: pending, completed, failed)
@@ -518,6 +464,7 @@ Le modèle `Transaction` représente une transaction de paiement unique. Il est 
 - `checkout_url` : URL de paiement fournie par le fournisseur
 - `metadata` : Métadonnées personnalisées associées à la transaction
 - `description` : Description de la transaction
+- `payment_details` : Détails supplémentaires du paiement (stockés en JSON)
 
 ### Subscription
 
@@ -534,150 +481,5 @@ Le modèle `Subscription` représente un abonnement récurrent. Il est défini d
 - `created_at` : Date et heure de création de l'abonnement
 - `next_billing_date` : Date du prochain prélèvement
 - `cancel_at_period_end` : Indique si l'abonnement sera annulé à la fin de la période en cours
-
-## Migrations
-
-L'API utilise Alembic pour gérer les migrations de base de données. Cela permet de versionner le schéma de la base de données et de faciliter les mises à jour.
-
-Pour créer une nouvelle migration :
-
-1. Modifiez les modèles de données dans le dossier `models/`.
-2. Exécutez la commande suivante pour générer un script de migration :
-
-```
-alembic revision --autogenerate -m "Description de la migration"
-```
-
-3. Vérifiez le script de migration généré dans le dossier `alembic/versions/`.
-4. Appliquez la migration avec la commande :
-
-```
-alembic upgrade head
-```
-
-Pour revenir à une version précédente de la base de données, utilisez :
-
-```
-alembic downgrade <revision>
-```
-
-Où `<revision>` est l'identifiant de la révision souhaitée.
-
-Pour plus de détails sur la configuration de la base de données, vous pouvez consulter le fichier `database.py` à la racine du projet.
-
-# 10. Tests
-
-Les tests pour l'API de Paiement Flexible sont implémentés dans deux fichiers principaux : `test_stripe.py` et `test_paypal.py`. Ces tests vérifient le bon fonctionnement des intégrations avec Stripe et PayPal respectivement.
-
-## Fonctionnalités testées
-
-Les tests couvrent les fonctionnalités suivantes pour chaque fournisseur :
-
-1. Création de transaction
-2. Création d'abonnement
-3. Annulation d'abonnement
-4. Simulation de webhooks pour les transactions et les abonnements
-
-## Procédure d'utilisation des tests
-
-Pour exécuter les tests, suivez ces étapes :
-
-1. Assurez-vous que l'API est en cours d'exécution localement.
-
-2. Ouvrez un terminal et naviguez jusqu'au répertoire du projet.
-
-3. Pour exécuter les tests Stripe :
-   ```
-   python test_stripe.py
-   ```
-
-4. Pour exécuter les tests PayPal :
-   ```
-   python test_paypal.py
-   ```
-
-Chaque fichier de test exécutera une série de tests qui créeront des transactions et des abonnements, simuleront des webhooks, et vérifieront les réponses de l'API.
-
-Les résultats des tests seront affichés dans la console, montrant les codes de statut HTTP et les réponses de l'API pour chaque opération.
-
-# 11. FAQ
-
-**Q1 : Comment puis-je ajouter un nouveau fournisseur de paiement ?**
-R : Pour ajouter un nouveau fournisseur, suivez les étapes décrites dans la section "Ajout d'un nouveau fournisseur" du README :
-
-
-```400:430:README.md
-## Ajout d'un nouveau fournisseur
-
-Pour ajouter un nouveau fournisseur de paiement à l'API, suivez ces étapes rigoureusement :
-
-1. **Créer une nouvelle classe de fournisseur** :
-   - Créez un nouveau fichier dans le dossier `providers/`, par exemple `new_provider.py`.
-   - Définissez une classe qui hérite de `PaymentProvider` (définie dans `providers/base.py`).
-   - Implémentez toutes les méthodes abstraites requises.
-
-2. **Implémenter les méthodes requises** :
-   - `create_payment`
-   - `create_subscription`
-   - `cancel_subscription`
-   - `get_payment_status`
-   - `get_subscription_status`
-   - `handle_webhook`
-
-3. **Ajouter les variables d'environnement** :
-   - Ajoutez les variables d'environnement nécessaires pour le nouveau fournisseur dans le fichier `.env`.
-   - Mettez à jour le fichier `config.py` pour inclure ces nouvelles variables.
-
-4. **Mettre à jour le chargeur de fournisseurs** :
-   - Modifiez le fichier `utils/provider_loader.py` pour inclure le nouveau fournisseur.
-
-5. **Créer des tests** :
-   - Ajoutez un nouveau fichier de test, par exemple `test_new_provider.py`.
-   - Implémentez des tests pour toutes les fonctionnalités du nouveau fournisseur.
-
-6. **Mettre à jour la documentation** :
-   - Ajoutez des informations sur le nouveau fournisseur dans le README.md.
-   - Mettez à jour la documentation API si nécessaire.
-```
-
-
-**Q2 : Comment fonctionnent les webhooks dans cette API ?**
-R : Les webhooks sont utilisés pour mettre à jour en temps réel le statut des transactions et des abonnements. Chaque fournisseur envoie des webhooks à l'endpoint `/webhook/{provider}`. L'API traite ces webhooks et met à jour la base de données en conséquence.
-
-**Q3 : Quels sont les principaux endpoints de l'API ?**
-R : Les principaux endpoints sont listés dans la section "Endpoints disponibles" du README :
-
-
-```288:296:README.md
-L'API de Paiement Flexible offre les endpoints suivants :
-
-1. **POST /transactions/** : Créer une nouvelle transaction
-2. **GET /transactions/{transaction_id}** : Récupérer les détails d'une transaction
-3. **POST /subscriptions/** : Créer un nouvel abonnement
-4. **GET /subscriptions/{subscription_id}** : Récupérer les détails d'un abonnement
-5. **PUT /subscriptions/{subscription_id}** : Mettre à jour un abonnement
-6. **DELETE /subscriptions/{subscription_id}** : Annuler un abonnement
-7. **POST /webhook/{provider}** : Endpoint pour les webhooks des fournisseurs de paiement
-```
-
-
-**Q4 : Comment puis-je exécuter les tests ?**
-R : Pour exécuter les tests, assurez-vous que l'API est en cours d'exécution localement, puis exécutez `python test_stripe.py` pour les tests Stripe et `python test_paypal.py` pour les tests PayPal.
-
-**Q5 : Comment gérer les migrations de base de données ?**
-R : L'API utilise Alembic pour les migrations. Pour créer une nouvelle migration, modifiez les modèles dans `models/`, puis exécutez `alembic revision --autogenerate -m "Description"`. Appliquez la migration avec `alembic upgrade head`.
-
-**Q6 : Quelles sont les variables d'environnement nécessaires ?**
-R : Les principales variables d'environnement incluent les clés API pour Stripe et PayPal, ainsi que les configurations de base de données. Consultez le fichier `.env.example` pour la liste complète.
-
-**Q7 : Comment puis-je déployer l'API en production ?**
-R : L'API peut être déployée en utilisant Docker. Utilisez le Dockerfile fourni pour créer une image, puis déployez-la sur votre plateforme préférée (AWS, Google Cloud, etc.). Assurez-vous de configurer correctement les variables d'environnement en production.
-
-**Q8 : L'API prend-elle en charge les paiements récurrents ?**
-R : Oui, l'API supporte les abonnements récurrents via les endpoints `/subscriptions/`. Vous pouvez créer, mettre à jour et annuler des abonnements.
-
-**Q9 : Comment puis-je gérer les erreurs de paiement ?**
-R : Les erreurs de paiement sont gérées au niveau du fournisseur et communiquées via les webhooks. Assurez-vous de bien configurer la gestion des erreurs dans votre implémentation et de vérifier les logs pour les détails des erreurs.
-
-**Q10 : L'API est-elle conforme aux normes de sécurité des paiements ?**
-R : L'API est conçue pour être conforme aux normes de sécurité, mais la conformité finale dépend de votre implémentation spécifique et de votre environnement de déploiement. Assurez-vous de suivre les meilleures pratiques de sécurité et de vous conformer aux réglementations locales en matière de paiement.
+- `metadata` : Métadonnées personnalisées associées à l'abonnement (stockées en JSON)
+- `description` : Description de l'abonnement
