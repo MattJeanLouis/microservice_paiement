@@ -2,6 +2,7 @@ import stripe
 from config import settings
 from .base import PaymentProvider
 from typing import Dict, Any, Optional
+from datetime import datetime
 
 class StripeProvider(PaymentProvider):
     def __init__(self, public_key: str, secret_key: str):
@@ -58,49 +59,35 @@ class StripeProvider(PaymentProvider):
 
     def process_webhook(self, data: Dict[str, Any]) -> Dict[str, Any]:
         try:
-            event = stripe.Event.construct_from(data, stripe.api_key)
-            if event.type == 'payment_intent.succeeded':
-                payment_intent = event.data.object
+            event_type = data["type"]
+            event_object = data["data"]["object"]
+
+            if event_type.startswith("payment_intent."):
                 return {
                     "type": "transaction",
-                    "status": "success",
-                    "provider_transaction_id": payment_intent.id
+                    "provider_transaction_id": event_object["id"],
+                    "status": event_object["status"]
                 }
-            elif event.type == 'payment_intent.payment_failed':
-                payment_intent = event.data.object
-                return {
-                    "type": "transaction",
-                    "status": "failed",
-                    "provider_transaction_id": payment_intent.id
-                }
-            elif event.type == 'customer.subscription.created':
-                subscription = event.data.object
+            elif event_type.startswith("customer.subscription."):
                 return {
                     "type": "subscription",
-                    "status": "active",
-                    "provider_subscription_id": subscription.id
-                }
-            elif event.type == 'customer.subscription.updated':
-                subscription = event.data.object
-                return {
-                    "type": "subscription",
-                    "status": subscription.status,
-                    "provider_subscription_id": subscription.id
-                }
-            elif event.type == 'customer.subscription.deleted':
-                subscription = event.data.object
-                return {
-                    "type": "subscription",
-                    "status": "cancelled",
-                    "provider_subscription_id": subscription.id
+                    "provider_subscription_id": event_object["id"],
+                    "status": event_object["status"]
                 }
             else:
-                return {"status": "unhandled_event"}
+                raise ValueError(f"Type d'événement non pris en charge : {event_type}")
+
+        except KeyError as e:
+            raise ValueError(f"Données de webhook invalides : {str(e)}")
         except Exception as e:
             raise ValueError(f"Erreur lors du traitement du webhook : {str(e)}")
         
     def create_subscription(self, amount: float, currency: str, interval: str, interval_count: int, payment_details: Dict[str, Any]) -> Dict[str, Any]:
         try:
+            customer_id = payment_details.get('customer_id')
+            if not customer_id:
+                raise ValueError("customer_id est requis pour créer un abonnement")
+
             product = stripe.Product.create(name=f"Subscription {amount} {currency} every {interval_count} {interval}")
             price = stripe.Price.create(
                 unit_amount=int(amount * 100),
@@ -109,12 +96,13 @@ class StripeProvider(PaymentProvider):
                 product=product.id,
             )
             subscription = stripe.Subscription.create(
-                customer=payment_details['customer_id'],
+                customer=customer_id,
                 items=[{"price": price.id}],
             )
             return {
                 "provider_subscription_id": subscription.id,
                 "status": subscription.status,
+                "start_date": datetime.fromtimestamp(subscription.start_date) if subscription.start_date else None,
             }
         except stripe.error.StripeError as e:
             raise ValueError(f"Erreur Stripe : {str(e)}")
@@ -124,6 +112,20 @@ class StripeProvider(PaymentProvider):
             subscription = stripe.Subscription.delete(provider_subscription_id)
             return {
                 "status": subscription.status,
+            }
+        except stripe.error.StripeError as e:
+            raise ValueError(f"Erreur Stripe : {str(e)}")
+        
+    def create_customer(self, customer_data: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            customer = stripe.Customer.create(
+                email=customer_data.get('email'),
+                name=customer_data.get('name')
+            )
+            return {
+                "provider_customer_id": customer.id,
+                "email": customer.email,
+                "name": customer.name
             }
         except stripe.error.StripeError as e:
             raise ValueError(f"Erreur Stripe : {str(e)}")
@@ -140,6 +142,70 @@ class StripeProvider(PaymentProvider):
             )
             return {
                 "status": updated_subscription.status,
+            }
+        except stripe.error.StripeError as e:
+            raise ValueError(f"Erreur Stripe : {str(e)}")
+        
+    def customer_has_payment_method(self, customer_id: str) -> bool:
+        try:
+            payment_methods = stripe.PaymentMethod.list(
+                customer=customer_id,
+                type="card"
+            )
+            return len(payment_methods.data) > 0
+        except stripe.error.StripeError as e:
+            raise ValueError(f"Erreur Stripe : {str(e)}")
+
+    def create_payment_setup_session(self, customer_id: str, success_url: str, cancel_url: str) -> Dict[str, Any]:
+        try:
+            session = stripe.checkout.Session.create(
+                customer=customer_id,
+                payment_method_types=['card'],
+                mode='setup',
+                success_url=success_url,
+                cancel_url=cancel_url,
+            )
+            return {
+                "id": session.id,
+                "url": session.url
+            }
+        except stripe.error.StripeError as e:
+            raise ValueError(f"Erreur Stripe : {str(e)}")
+        
+    def set_default_payment_method(self, customer_id: str) -> bool:
+        try:
+            payment_methods = stripe.PaymentMethod.list(
+                customer=customer_id,
+                type="card"
+            )
+            if payment_methods.data:
+                stripe.Customer.modify(
+                    customer_id,
+                    invoice_settings={"default_payment_method": payment_methods.data[0].id}
+                )
+                return True
+            return False
+        except stripe.error.StripeError as e:
+            raise ValueError(f"Erreur Stripe : {str(e)}")
+        
+    def create_product_and_price(self, product_data: dict) -> dict:
+        try:
+            product = stripe.Product.create(
+                name=product_data["name"],
+                description=product_data["description"]
+            )
+            price = stripe.Price.create(
+                product=product.id,
+                unit_amount=int(product_data["amount"] * 100),
+                currency=product_data["currency"],
+                recurring={
+                    "interval": product_data["interval"],
+                    "interval_count": product_data["interval_count"]
+                }
+            )
+            return {
+                "product_id": product.id,
+                "price_id": price.id
             }
         except stripe.error.StripeError as e:
             raise ValueError(f"Erreur Stripe : {str(e)}")

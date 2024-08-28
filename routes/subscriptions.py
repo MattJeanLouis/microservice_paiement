@@ -5,6 +5,7 @@ from database import get_db
 from models.subscription import Subscription
 from schemas.subscription import SubscriptionCreate, SubscriptionResponse
 from providers.base import PaymentProvider
+from datetime import datetime
 
 router = APIRouter(tags=["subscriptions"])
 
@@ -28,7 +29,11 @@ async def create_subscription(
         "currency": "EUR",
         "interval": "month",
         "interval_count": 1,
-        "payment_details": {"customer_id": "cus_123456789"}
+        "payment_details": {
+            "customer_id": "cus_123456789",
+            "success_url": "https://example.com/success",
+            "cancel_url": "https://example.com/cancel"
+        }
     }),
     provider: str = Query("stripe", description="Le fournisseur de paiement à utiliser (par défaut: stripe)"),
     db: Session = Depends(get_db),
@@ -43,6 +48,11 @@ async def create_subscription(
             subscription.payment_details
         )
         
+        # Assurez-vous que start_date est une datetime valide ou None
+        start_date = result.get("start_date")
+        if start_date and not isinstance(start_date, datetime):
+            start_date = datetime.fromisoformat(start_date)
+        
         db_subscription = Subscription(
             user_id=subscription.user_id,
             plan_id=subscription.plan_id,
@@ -52,12 +62,26 @@ async def create_subscription(
             interval=subscription.interval,
             interval_count=subscription.interval_count,
             provider=provider,
-            provider_subscription_id=result["provider_subscription_id"]
+            provider_subscription_id=result["provider_subscription_id"],
+            start_date=start_date
         )
         db.add(db_subscription)
         db.commit()
         db.refresh(db_subscription)
-        return db_subscription
+        
+        return SubscriptionResponse(
+            id=db_subscription.id,
+            provider_subscription_id=db_subscription.provider_subscription_id,
+            status=db_subscription.status,
+            start_date=db_subscription.start_date,
+            amount=db_subscription.amount,
+            currency=db_subscription.currency,
+            interval=db_subscription.interval,
+            interval_count=db_subscription.interval_count,
+            user_id=db_subscription.user_id,
+            plan_id=db_subscription.plan_id,
+            provider=provider  # Ajoutez cette ligne
+        )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -105,6 +129,6 @@ async def update_subscription(
         subscription.plan_id = new_plan.get("plan_id", subscription.plan_id)
         db.commit()
         db.refresh(subscription)
-        return subscription
+        return SubscriptionResponse.from_orm(subscription)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

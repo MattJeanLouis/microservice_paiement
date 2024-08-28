@@ -142,6 +142,29 @@ async def get_payment_url(
     
     return {"payment_url": transaction.checkout_url}
 
+@router.get("/transactions/{transaction_id}/status", response_model=Dict[str, str],
+            summary="Obtenir le statut d'une transaction",
+            response_description="Le statut actuel de la transaction")
+async def get_transaction_status(
+    transaction_id: int = Path(..., title="L'ID de la transaction à vérifier", ge=1),
+    provider: str = Query("stripe", description="Le fournisseur de paiement à utiliser"),
+    db: Session = Depends(get_db),
+    payment_provider: PaymentProvider = Depends(get_payment_provider)
+):
+    transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+    if transaction is None:
+        raise HTTPException(status_code=404, detail="Transaction non trouvée")
+    
+    try:
+        current_status = payment_provider.check_payment_status(transaction.provider_transaction_id)
+        if current_status != transaction.status:
+            transaction.status = current_status
+            db.commit()
+        
+        return {"status": current_status}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @router.post("/webhook/{provider}", 
              summary="Traiter un webhook",
              response_description="Statut de traitement du webhook",

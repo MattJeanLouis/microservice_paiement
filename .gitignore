@@ -4,3 +4,11 @@
 # Fichiers cache Python
 __pycache__/
 *.py[cod]
+
+# Fichier système macOS
+.DS_Store
+
+# Environnement virtuel
+venv/
+env/
+.venv/
