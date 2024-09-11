@@ -69,14 +69,6 @@ jobs:
         target: "/home/debian/ms_payment"
 
     - name: Deploy MS
-      env:
-        DATABASE_URL=${{ secrets.DATABASE_URL }}
-        STRIPE_PUBLIC_KEY=${{ secrets.STRIPE_PUBLIC_KEY }}
-        STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
-        PAYPAL_CLIENT_ID=${{ secrets.PAYPAL_CLIENT_ID }}
-        PAYPAL_CLIENT_SECRET=${{ secrets.PAYPAL_CLIENT_SECRET }}
-        PAYPAL_MODE=${{ secrets.PAYPAL_MODE }}
-        BASE_URL=${{ secrets.BASE_URL }}
       uses: appleboy/ssh-action@v0.1.7
       with:
         host: ${{ secrets.SERVER_HOST }}
@@ -86,11 +78,3 @@ jobs:
           echo "Deploy Microservice..."
           chmod +x /home/debian/ms_payment/payment.sh
           /home/debian/ms_payment/payment.sh
-          docker-compose up -d \
-            -e DATABASE_URL=${DATABASE_URL} \
-            -e STRIPE_PUBLIC_KEY=${STRIPE_PUBLIC_KEY} \
-            -e STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY} \
-            -e PAYPAL_CLIENT_ID=${PAYPAL_CLIENT_ID} \
-            -e PAYPAL_CLIENT_SECRET=${PAYPAL_CLIENT_SECRET} \
-            -e PAYPAL_MODE=${PAYPAL_MODE} \
-            -e BASE_URL=${BASE_URL}
