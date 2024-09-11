@@ -87,10 +87,10 @@ jobs:
           chmod +x /home/debian/ms_payment/payment.sh
           /home/debian/ms_payment/payment.sh
           docker-compose up -d \
-            -e DATABASE_URL=${{DATABASE_URL}} \
+            -e DATABASE_URL=${DATABASE_URL} \
             -e STRIPE_PUBLIC_KEY=${STRIPE_PUBLIC_KEY} \
             -e STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY} \
             -e PAYPAL_CLIENT_ID=${PAYPAL_CLIENT_ID} \
             -e PAYPAL_CLIENT_SECRET=${PAYPAL_CLIENT_SECRET} \
-            -e PAYPAL_MODE=${{ secrets.PAYPAL_MODE }} \
+            -e PAYPAL_MODE=${PAYPAL_MODE} \
             -e BASE_URL=${BASE_URL}
