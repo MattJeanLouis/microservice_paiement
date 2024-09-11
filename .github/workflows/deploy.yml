@@ -45,7 +45,7 @@ jobs:
         context: .
         push: true
         tags: nrajaona/kimaiko:payment-${{ github.sha }}
-        file: ./Dockerfile.prod
+        file: ./Dockerfile
         build-args: |
           DATABASE_URL=${{ secrets.DATABASE_URL }}
           STRIPE_PUBLIC_KEY=${{ secrets.STRIPE_PUBLIC_KEY }}
