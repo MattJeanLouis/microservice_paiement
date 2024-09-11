@@ -23,7 +23,12 @@ services:
     volumes:
       - sqlite_data:/app/data
     restart: unless-stopped
+    networks:
+    - payment-core-network
 
 volumes:
   sqlite_data:
     driver: local
+networks:
+  payment-core-network:
+    external: true
