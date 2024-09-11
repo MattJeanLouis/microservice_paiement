@@ -1,0 +1,29 @@
+services:
+  payment:
+    image: nrajaona/kimaiko:payment
+    labels:
+    - "traefik.enable=true"
+    - "traefik.http.routers.payment.rule=Host(`f2103ux.server.kimaiko.com`)"
+    - "traefik.http.routers.payment.entrypoints=websecure"
+    - "traefik.http.routers.payment.tls=true"
+    - "traefik.http.routers.payment.tls.certresolver=myresolver"
+    - "traefik.http.routers.payment.service=payment"
+    - "traefik.http.services.payment.loadbalancer.server.port=8000"
+    user: appuser
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=${{DATABASE_URL}}
+      - STRIPE_PUBLIC_KEY=${STRIPE_PUBLIC_KEY}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - PAYPAL_CLIENT_ID=${PAYPAL_CLIENT_ID}
+      - PAYPAL_CLIENT_SECRET=${PAYPAL_CLIENT_SECRET}
+      - PAYPAL_MODE=${PAYPAL_MODE}
+      - BASE_URL=${BASE_URL}
+    volumes:
+      - sqlite_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  sqlite_data:
+    driver: local
