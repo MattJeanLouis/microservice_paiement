@@ -40,14 +40,37 @@ async def create_subscription(
     payment_provider: PaymentProvider = Depends(get_payment_provider)
 ):
     try:
-        result = payment_provider.create_subscription(
-            subscription.amount,
-            subscription.currency,
-            subscription.interval,
-            subscription.interval_count,
-            subscription.payment_details
-        )
+        if provider == "revolut":
+            raise HTTPException(status_code=400, detail="Revolut ne supporte pas actuellement les abonnements")
         
+        print(f"Création d'abonnement pour {provider}: {subscription.dict()}")
+
+        # Adapter les données en fonction du fournisseur
+        if provider == "paypal":
+            subscription_data = {
+                "amount": subscription.amount,
+                "currency": subscription.currency,
+                "interval": subscription.interval,
+                "interval_count": subscription.interval_count,
+                "payment_details": {
+                    "plan_id": subscription.plan_id,
+                    "success_url": subscription.payment_details.get("success_url"),
+                    "cancel_url": subscription.payment_details.get("cancel_url")
+                }
+            }
+        else:  # Stripe ou autres fournisseurs
+            subscription_data = {
+                "amount": subscription.amount,
+                "currency": subscription.currency,
+                "interval": subscription.interval,
+                "interval_count": subscription.interval_count,
+                "payment_details": subscription.payment_details
+            }
+
+        result = payment_provider.create_subscription(**subscription_data)
+        
+        print(f"Résultat de la création d'abonnement: {result}")
+
         # Assurez-vous que start_date est une datetime valide ou None
         start_date = result.get("start_date")
         if start_date and not isinstance(start_date, datetime):
@@ -80,9 +103,10 @@ async def create_subscription(
             interval_count=db_subscription.interval_count,
             user_id=db_subscription.user_id,
             plan_id=db_subscription.plan_id,
-            provider=provider  # Ajoutez cette ligne
+            provider=provider
         )
     except Exception as e:
+        print(f"Erreur lors de la création de l'abonnement : {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.delete("/subscriptions/{subscription_id}", 

@@ -9,15 +9,25 @@ BASE_URL = settings.base_url
 def wait_for_payment_method(customer_id, timeout=300):
     print("En attente de la configuration du mode de paiement...")
     start_time = time.time()
+    last_reminder_time = 0
     while time.time() - start_time < timeout:
         url = f"{BASE_URL}/customers/{customer_id}/payment-method"
         response = requests.get(url, params={"provider": "stripe"})
         print(f"Réponse de l'API: {response.status_code} - {response.text}")
-        if response.status_code == 200 and response.json().get("has_payment_method"):
-            print("✅ Mode de paiement configuré avec succès!")
-            return True
-        if (time.time() - start_time) % 30 < 5:  # Affiche un rappel toutes les 30 secondes
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("has_payment_method"):
+                print("✅ Mode de paiement configuré avec succès!")
+                print(f"Détails de la méthode de paiement: {data.get('payment_method_details', 'Non disponible')}")
+                return True
+            else:
+                print("Mode de paiement non encore configuré.")
+        else:
+            print(f"Erreur lors de la vérifiation du mode de paiement: {response.status_code}")
+        current_time = time.time()
+        if current_time - last_reminder_time >= 30:
             print("Rappel : N'oubliez pas de configurer le mode de paiement dans votre navigateur.")
+            last_reminder_time = current_time
         time.sleep(5)
     return False
 
@@ -162,7 +172,14 @@ def create_payment_setup_session(customer_id):
     payload = {
         "customer_id": customer_id,
         "success_url": "https://example.com/setup/success",
-        "cancel_url": "https://example.com/setup/cancel"
+        "cancel_url": "https://example.com/setup/cancel",
+        "setup_intent_data": {
+            "metadata": {
+                "customer_id": customer_id
+            }
+        },
+        "mode": "setup",
+        "payment_method_types": ["card"]
     }
     response = requests.post(url, json=payload, params={"provider": "stripe"})
     
@@ -251,12 +268,11 @@ if __name__ == "__main__":
 
     print("\n⚠️ Attention : Au cours de ce test, vous devrez configurer un mode de paiement dans votre navigateur.")
     print("Assurez-vous d'être prêt à le faire lorsque l'URL de configuration s'affichera.")
-    input("Appuyez sur Entrée lorsque vous êtes prêt à commencer...")
+    #input("Appuyez sur Entrée lorsque vous êtes prêt à commencer...")
     
     # Test de transaction
     transaction = test_create_stripe_transaction()
     if transaction:
-        status = test_check_payment_status(transaction['id'])
         simulate_stripe_webhook(transaction['provider_transaction_id'], "payment_intent.succeeded")
         status = test_check_payment_status(transaction['id'])
     else:

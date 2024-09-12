@@ -12,3 +12,7 @@ __pycache__/
 venv/
 env/
 .venv/
+
+# Dossiers cachés (commençant par un point), sauf .gitignore
+.*
+!.gitignore

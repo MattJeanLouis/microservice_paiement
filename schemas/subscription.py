@@ -9,7 +9,7 @@ class SubscriptionCreate(BaseModel):
     currency: str
     interval: str
     interval_count: int
-    payment_details: dict
+    payment_details: Dict[str, Any]
 
     class Config:
         schema_extra = {

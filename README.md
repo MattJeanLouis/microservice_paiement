@@ -49,7 +49,7 @@ L'API de Paiement Flexible est une solution robuste et modulaire conçue pour g�
 
 ## Fonctionnalités principales
 
-- **Gestion multi-fournisseurs** : Intégration transparente avec plusieurs fournisseurs de paiement (actuellement Stripe et PayPal) via une interface unifiée.
+- **Gestion multi-fournisseurs** : Intégration transparente avec plusieurs fournisseurs de paiement (actuellement Stripe, PayPal et Revolut) via une interface unifiée.
 - **Transactions de paiement** : Création, vérification et gestion des transactions de paiement uniques.
 - **Gestion des abonnements** : Mise en place, mise à jour et annulation d'abonnements récurrents.
 - **Webhooks** : Traitement des webhooks pour les mises à jour en temps réel des statuts de paiement et d'abonnement.
@@ -100,6 +100,9 @@ STRIPE_SECRET_KEY=votre_cle_secrete_stripe
 PAYPAL_CLIENT_ID=votre_client_id_paypal
 PAYPAL_CLIENT_SECRET=votre_client_secret_paypal
 PAYPAL_MODE=sandbox
+REVOLUT_PUBLIC_KEY=votre_cle_publique_revolut
+REVOLUT_SECRET_KEY=votre_cle_secrete_revolut
+REVOLUT_MODE=sandbox
 BASE_URL=http://localhost:8000
 ```
 
@@ -124,6 +127,7 @@ python-dotenv
 stripe
 requests
 paypalrestsdk
+pytest
 ```
 
 ## Utilisation de Docker
@@ -156,7 +160,7 @@ docker build -t api-paiement-flexible .
 4. Pour démarrer un conteneur à partir de cette image, utilisez la commande :
 
 ```
-docker run -p 8000:8000 -e DATABASE_URL=sqlite:///./test.db -e STRIPE_PUBLIC_KEY=votre_cle_publique_stripe -e STRIPE_SECRET_KEY=votre_cle_secrete_stripe -e PAYPAL_CLIENT_ID=votre_client_id_paypal -e PAYPAL_CLIENT_SECRET=votre_client_secret_paypal -e PAYPAL_MODE=sandbox -e BASE_URL=http://localhost:8000 api-paiement-flexible
+docker run -p 8000:8000 --env-file .env api-paiement-flexible
 ```
 
 Assurez-vous de remplacer les valeurs des variables d'environnement par vos propres clés et configurations.
@@ -166,22 +170,6 @@ Assurez-vous de remplacer les valeurs des variables d'environnement par vos prop
 Voici la rédaction pour la section Configuration du README :
 
 # 3. Configuration
-
-## Variables d'environnement
-
-L'API de Paiement Flexible utilise des variables d'environnement pour gérer la configuration. Créez un fichier `.env` à la racine du projet avec les variables suivantes :
-
-```
-DATABASE_URL=sqlite:///./test.db
-STRIPE_PUBLIC_KEY=votre_cle_publique_stripe
-STRIPE_SECRET_KEY=votre_cle_secrete_stripe
-PAYPAL_CLIENT_ID=votre_client_id_paypal
-PAYPAL_CLIENT_SECRET=votre_client_secret_paypal
-PAYPAL_MODE=sandbox
-BASE_URL=http://localhost:8000
-```
-
-Assurez-vous de remplacer les valeurs par vos propres clés d'API et configurations.
 
 ## Configuration des fournisseurs de paiement
 
@@ -196,6 +184,12 @@ Assurez-vous de remplacer les valeurs par vos propres clés d'API et configurati
 1. Créez un compte développeur PayPal sur https://developer.paypal.com/
 2. Créez une application pour obtenir vos identifiants Client ID et Secret
 3. Configurez les webhooks PayPal pour pointer vers `{BASE_URL}/webhook/paypal`
+
+### Revolut
+
+1. Créez un compte développeur Revolut sur https://developer.revolut.com/
+2. Créez une application pour obtenir vos clés API publique et secrète
+3. Configurez les webhooks Revolut pour pointer vers `{BASE_URL}/webhook/revolut`
 
 Pour ajouter un nouveau fournisseur de paiement, suivez ces étapes :
 
@@ -228,6 +222,7 @@ L'étape 5 est importante car des tests spécifiques sont créés pour chaque fo
 ├── providers/
 │   ├── base.py
 │   ├── paypal.py
+│   ├── revolut.py
 │   └── stripe.py
 ├── routes/
 │   ├── customers.py
@@ -241,6 +236,7 @@ L'étape 5 est importante car des tests spécifiques sont créés pour chaque fo
 ├── utils/
 │   └── provider_loader.py
 └── test_paypal.py
+└── test_revolut.py
 └── test_stripe.py
 ```
 
@@ -261,6 +257,7 @@ L'étape 5 est importante car des tests spécifiques sont créés pour chaque fo
    - **base.py** : Définit la classe de base `PaymentProvider` avec les méthodes abstraites.
    - **stripe.py** : Implémente le fournisseur de paiement Stripe.
    - **paypal.py** : Implémente le fournisseur de paiement PayPal.
+   - **revolut.py** : Implémente le fournisseur de paiement Revolut.
 
 6. **routes/** : Contient les définitions des routes de l'API.
    - **customers.py** : Gère les routes liées aux clients.
@@ -313,16 +310,19 @@ Pour plus de détails sur les paramètres acceptés et les réponses pour chaque
 
 ## Fournisseurs supportés
 
-Actuellement, l'API de Paiement Flexible prend en charge deux fournisseurs de paiement :
+Actuellement, l'API de Paiement Flexible prend en charge trois fournisseurs de paiement :
 
 1. **Stripe** : Un service de paiement en ligne complet, offrant des fonctionnalités pour les transactions uniques et les abonnements récurrents.
 
 2. **PayPal** : Une plateforme de paiement en ligne largement utilisée, permettant les transactions et les abonnements.
 
+3. **Revolut** : Une solution de paiement moderne offrant des services bancaires et de paiement, adaptée aux transactions internationales.
+
 Ces fournisseurs sont implémentés dans les fichiers suivants :
 
 - providers/stripe.py
 - providers/paypal.py
+- providers/revolut.py
 
 ## Ajout d'un nouveau fournisseur
 
@@ -386,8 +386,6 @@ La vérification du statut d'une transaction peut se faire de deux manières :
 La vérification active permet d'obtenir le statut le plus récent d'une transaction à tout moment. Elle est particulièrement utile pour les interfaces utilisateur qui nécessitent des mises à jour en temps réel ou pour vérifier l'état d'une transaction après que l'utilisateur a été redirigé vers l'URL de paiement.
 
 Lorsqu'une requête de vérification de statut est effectuée, l'API interroge le fournisseur de paiement pour obtenir le statut le plus récent, puis met à jour la base de données locale si nécessaire. Cela garantit que le statut affiché est toujours à jour, même si un webhook n'a pas encore été reçu ou traité.
-
-Il est recommandé d'utiliser une combinaison de vérification active et de mise à jour passive pour assurer une synchronisation optimale entre votre système et le fournisseur de paiement.
 
 ## Webhooks
 

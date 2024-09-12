@@ -8,6 +8,7 @@ from providers.base import PaymentProvider
 from database import get_db
 from datetime import datetime
 from models.subscription import Subscription
+from constants import PAYMENT_STATUS
 
 router = APIRouter(tags=["transactions"])
 
@@ -74,7 +75,7 @@ async def create_transaction(
             status=db_transaction.status,
             provider=db_transaction.provider,
             provider_transaction_id=db_transaction.provider_transaction_id,
-            client_secret=payment_result["client_secret"],
+            client_secret=payment_result.get("client_secret", ""),
             checkout_url=payment_result["checkout_url"],
             created_at=db_transaction.created_at,
             metadata=db_transaction.custom_metadata,
@@ -93,7 +94,13 @@ async def get_transaction(
     db: Session = Depends(get_db),
     payment_provider: PaymentProvider = Depends(get_payment_provider)
 ):
+    # Essayez d'abord de trouver la transaction par ID interne
     transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+    
+    # Si non trouvé, essayez de trouver par ID de fournisseur
+    if transaction is None:
+        transaction = db.query(Transaction).filter(Transaction.provider_transaction_id == transaction_id).first()
+    
     if transaction is None:
         raise HTTPException(status_code=404, detail="Transaction non trouvée")
     
@@ -102,9 +109,10 @@ async def get_transaction(
         if current_status != transaction.status:
             transaction.status = current_status
             db.commit()
+        
+        return {"status": current_status}
     except ValueError as e:
-        print(f"Erreur lors de la vérification du statut : {str(e)}")
-        # Ne pas mettre à jour le statut en cas d'erreur
+        raise HTTPException(status_code=400, detail=str(e))
     
     return TransactionResponse(
         id=transaction.id,
@@ -142,27 +150,43 @@ async def get_payment_url(
     
     return {"payment_url": transaction.checkout_url}
 
-@router.get("/transactions/{transaction_id}/status", response_model=Dict[str, str],
-            summary="Obtenir le statut d'une transaction",
-            response_description="Le statut actuel de la transaction")
+@router.get("/transactions/{transaction_id}/status", response_model=Dict[str, Any])
 async def get_transaction_status(
-    transaction_id: int = Path(..., title="L'ID de la transaction à vérifier", ge=1),
-    provider: str = Query("stripe", description="Le fournisseur de paiement à utiliser"),
+    transaction_id: str = Path(..., title="L'ID de la transaction à vérifier"),
+    provider: str = Query(..., description="Le fournisseur de paiement à utiliser"),
     db: Session = Depends(get_db),
     payment_provider: PaymentProvider = Depends(get_payment_provider)
 ):
-    transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+    print(f"Recherche de la transaction avec l'ID : {transaction_id}")
+    transaction = db.query(Transaction).filter(
+        (Transaction.id == transaction_id) | (Transaction.provider_transaction_id == transaction_id)
+    ).first()
+    
     if transaction is None:
+        print(f"Transaction non trouvée")
         raise HTTPException(status_code=404, detail="Transaction non trouvée")
     
+    print(f"Transaction trouvée : {transaction}")
     try:
-        current_status = payment_provider.check_payment_status(transaction.provider_transaction_id)
-        if current_status != transaction.status:
-            transaction.status = current_status
+        status_info = payment_provider.check_payment_status(transaction.provider_transaction_id)
+        print(f"Informations de statut reçues : {status_info}")
+        
+        if status_info.get('status') != transaction.status:
+            transaction.status = status_info.get('status', PAYMENT_STATUS.UNKNOWN)
             db.commit()
         
-        return {"status": current_status}
+        response = {
+            "status": status_info.get('status', PAYMENT_STATUS.UNKNOWN),
+            "provider_status": status_info.get('provider_status', 'Inconnu'),
+            "provider": provider,
+            "transaction_id": str(transaction.id),
+            "provider_transaction_id": transaction.provider_transaction_id,
+            "details": status_info.get('details', {})
+        }
+        
+        return response
     except ValueError as e:
+        print(f"Erreur lors de la vérification du statut : {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/webhook/{provider}", 

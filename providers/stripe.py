@@ -3,6 +3,7 @@ from config import settings
 from .base import PaymentProvider
 from typing import Dict, Any, Optional
 from datetime import datetime
+from constants import PAYMENT_STATUS
 
 class StripeProvider(PaymentProvider):
     def __init__(self, public_key: str, secret_key: str):
@@ -38,22 +39,50 @@ class StripeProvider(PaymentProvider):
         except stripe.error.StripeError as e:
             raise ValueError(f"Erreur Stripe : {str(e)}")
 
-    def check_payment_status(self, provider_transaction_id: str) -> str:
+    def check_payment_status(self, provider_transaction_id: str) -> Dict[str, Any]:
         try:
             if provider_transaction_id.startswith('cs_'):
                 # C'est un ID de session Checkout
                 session = stripe.checkout.Session.retrieve(provider_transaction_id)
                 if session.payment_intent:
                     payment_intent = stripe.PaymentIntent.retrieve(session.payment_intent)
-                    return payment_intent.status
+                    stripe_status = payment_intent.status
+                    details = payment_intent
                 else:
-                    return session.status
+                    stripe_status = session.status
+                    details = session
             elif provider_transaction_id.startswith('pi_'):
                 # C'est un ID de PaymentIntent
                 payment_intent = stripe.PaymentIntent.retrieve(provider_transaction_id)
-                return payment_intent.status
+                stripe_status = payment_intent.status
+                details = payment_intent
             else:
                 raise ValueError(f"ID de transaction non reconnu : {provider_transaction_id}")
+
+            # Mapper le statut Stripe à notre statut unifié
+            if stripe_status == 'succeeded':
+                unified_status = PAYMENT_STATUS['COMPLETED']
+            elif stripe_status in ['processing', 'requires_action', 'requires_confirmation']:
+                unified_status = PAYMENT_STATUS['PROCESSING']
+            elif stripe_status in ['requires_payment_method', 'requires_capture']:
+                unified_status = PAYMENT_STATUS['PENDING']
+            elif stripe_status == 'canceled':
+                unified_status = PAYMENT_STATUS['CANCELLED']
+            else:
+                unified_status = PAYMENT_STATUS['FAILED']
+
+            return {
+                'status': unified_status,
+                'provider_status': stripe_status,
+                'details': {
+                    'id': provider_transaction_id,
+                    'amount': details.get('amount') or getattr(details, 'amount', None),
+                    'currency': details.get('currency') or getattr(details, 'currency', None),
+                    'payment_method': details.get('payment_method') or getattr(details, 'payment_method', None),
+                    'customer': details.get('customer') or getattr(details, 'customer', None),
+                }
+            }
+
         except stripe.error.StripeError as e:
             raise ValueError(f"Erreur Stripe : {str(e)}")
 
